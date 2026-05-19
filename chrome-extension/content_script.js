@@ -3890,36 +3890,45 @@ JSON stores relative paths like \`./screenshots/file.png\`, but actual files are
     createFreeformCommentBox(rectangleData, mouseX, mouseY);
   }
 
-  // Click handler
-  document.addEventListener('click', (e) => {
-    if (!commentMode) return;
-    
-    // Use composedPath() to properly detect clicks inside Shadow DOM
-    // This is necessary because e.target gets retargeted to the shadow host
-    // when events bubble out of Shadow DOM, breaking .closest() checks
+  // Helper: does the event target sit inside Moat's own UI?
+  function isEventInMoatUI(e) {
     const path = e.composedPath();
-    const clickedInsideMoatUI = path.some(el => 
+    const insideMoatUI = path.some(el =>
       el.classList && (
-        el.classList.contains('float-moat') || 
+        el.classList.contains('float-moat') ||
         el.classList.contains('float-comment-box')
       )
     );
-    
-    if (clickedInsideMoatUI) {
-      return;
-    }
-    
-    // Also check for shadow host directly (fallback safety check)
+    if (insideMoatUI) return true;
     const element = e.target;
-    if (element.id === 'moat-shadow-host') {
-      return;
-    }
-    
+    if (element && element.id === 'moat-shadow-host') return true;
+    return false;
+  }
+
+  // Click handler
+  document.addEventListener('click', (e) => {
+    if (!commentMode) return;
+    if (isEventInMoatUI(e)) return;
+
     e.preventDefault();
     e.stopPropagation();
-    
-    createCommentBox(element, e.clientX, e.clientY);
+
+    createCommentBox(e.target, e.clientX, e.clientY);
   }, true);
+
+  // Suppress mousedown/pointerdown/mouseup in comment mode so floating-UI
+  // libraries (Radix, Headless UI, Floating UI) don't dismiss user panels via
+  // their outside-press detection before our click handler fires.
+  function swallowPress(e) {
+    if (!commentMode) return;
+    if (isEventInMoatUI(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+  }
+  document.addEventListener('mousedown', swallowPress, true);
+  document.addEventListener('pointerdown', swallowPress, true);
+  document.addEventListener('mouseup', swallowPress, true);
 
   // Global variables for new notification system
   let hasPressedC = false;
