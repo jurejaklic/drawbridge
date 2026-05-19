@@ -3258,10 +3258,12 @@ JSON stores relative paths like \`./screenshots/file.png\`, but actual files are
     cancelBtn.addEventListener('click', exitCommentMode);
     
     textarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      // Skip Enter while IME is composing (Japanese, Chinese, Korean, etc.)
+      // keyCode === 229 covers older browsers where isComposing is unreliable on commit
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
         e.preventDefault();
         handleSubmit();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' && !e.isComposing && e.keyCode !== 229) {
         exitCommentMode();
       }
     });
@@ -3602,10 +3604,11 @@ JSON stores relative paths like \`./screenshots/file.png\`, but actual files are
     });
     
     textarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      // Skip Enter/Escape while IME is composing (Japanese, Chinese, Korean, etc.)
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
         e.preventDefault();
         handleSubmit();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' && !e.isComposing && e.keyCode !== 229) {
         // Clear canvas and exit drawing mode
         if (drawingCtx && drawingCanvas) {
           drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
