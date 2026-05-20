@@ -1,5 +1,10 @@
 // Moat Chrome Extension - Content Script
 (function() {
+  if (window.__drawbridgeContentScriptLoaded) {
+    return;
+  }
+  window.__drawbridgeContentScriptLoaded = true;
+
   let commentMode = false;
   let hoveredElement = null;
   let commentBox = null;
@@ -4440,7 +4445,11 @@ JSON stores relative paths like \`./screenshots/file.png\`, but actual files are
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'ping') {
       // Simple ping to check if content script is ready
-      sendResponse({ success: true, ready: true });
+      sendResponse({
+        success: true,
+        ready: true,
+        moatLoaded: !!window.__drawbridgeMoatLoaded
+      });
     } else if (request.action === 'toggleMoat') {
       window.dispatchEvent(new CustomEvent('moat:toggle-moat'));
       sendResponse({ success: true });

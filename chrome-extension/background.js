@@ -1,39 +1,147 @@
 // chrome-extension/background.js
 
-// Handle extension icon click - toggle Drawbridge sidebar
-chrome.action.onClicked.addListener(async (tab) => {
-  // Check for restricted URL schemes where content scripts cannot run
-  const restrictedSchemes = [
-    'chrome://',
-    'chrome-extension://',
-    'edge://',
-    'about:',
-    'moz-extension://',
-    'devtools://'
-  ];
+const RESTRICTED_URL_PREFIXES = [
+  'chrome://',
+  'chrome-extension://',
+  'edge://',
+  'about:',
+  'moz-extension://',
+  'devtools://'
+];
 
-  const isRestricted = restrictedSchemes.some(scheme => tab.url?.startsWith(scheme));
-  
-  if (isRestricted || !tab.id || !tab.url) {
-    console.warn('Drawbridge: Cannot open on restricted page:', tab.url);
+function isRestrictedTab(tab) {
+  return !tab?.id || !tab?.url || RESTRICTED_URL_PREFIXES.some(scheme => tab.url.startsWith(scheme));
+}
+
+function sendTabMessage(tabId, message) {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.tabs.sendMessage(tabId, message, (response) => {
+        const lastError = chrome.runtime.lastError;
+
+        if (lastError) {
+          reject(new Error(lastError.message));
+          return;
+        }
+
+        resolve(response);
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+function runScriptingMethod(methodName, details) {
+  return new Promise((resolve, reject) => {
+    try {
+      const maybePromise = chrome.scripting[methodName](details, (result) => {
+        const lastError = chrome.runtime.lastError;
+
+        if (lastError) {
+          reject(new Error(lastError.message));
+          return;
+        }
+
+        resolve(result);
+      });
+
+      if (maybePromise && typeof maybePromise.then === 'function') {
+        maybePromise.then(resolve, reject);
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+function getPrimaryContentScript() {
+  const manifest = chrome.runtime.getManifest();
+  return manifest.content_scripts?.[0] || {};
+}
+
+async function injectManifestContentScripts(tabId) {
+  const contentScript = getPrimaryContentScript();
+  const target = { tabId };
+
+  if (contentScript.css?.length) {
+    await runScriptingMethod('insertCSS', {
+      target,
+      files: contentScript.css
+    });
+  }
+
+  if (contentScript.js?.length) {
+    await runScriptingMethod('executeScript', {
+      target,
+      files: contentScript.js
+    });
+  }
+}
+
+async function injectMoatScript(tabId) {
+  const contentScript = getPrimaryContentScript();
+  const moatScript = contentScript.js?.find(file => file.endsWith('moat.js'));
+  const target = { tabId };
+
+  if (contentScript.css?.length) {
+    await runScriptingMethod('insertCSS', {
+      target,
+      files: contentScript.css
+    });
+  }
+
+  if (!moatScript) {
+    throw new Error('Could not find moat.js in manifest content scripts');
+  }
+
+  await runScriptingMethod('executeScript', {
+    target,
+    files: [moatScript]
+  });
+}
+
+function needsManualInjection(pingResponse) {
+  return !pingResponse?.ready || pingResponse.moatLoaded === false;
+}
+
+async function ensureContentScriptsReady(tabId) {
+  try {
+    const pingResponse = await sendTabMessage(tabId, { action: 'ping' });
+
+    if (!needsManualInjection(pingResponse)) {
+      return;
+    }
+
+    await injectMoatScript(tabId);
+  } catch (error) {
+    console.warn('Drawbridge: Content script not ready, injecting into active tab:', error.message);
+    await injectManifestContentScripts(tabId);
+  }
+
+  const pingResponse = await sendTabMessage(tabId, { action: 'ping' });
+  if (needsManualInjection(pingResponse)) {
+    throw new Error('Content script did not report ready after injection');
+  }
+}
+
+async function handleActionClick(tab) {
+  if (isRestrictedTab(tab)) {
+    console.warn('Drawbridge: Cannot open on restricted page:', tab?.url);
     return;
   }
 
   try {
-    // Send message to content script to toggle the Drawbridge sidebar
-    // Content scripts are auto-injected via manifest, so this should work
-    chrome.tabs.sendMessage(tab.id, { action: 'toggleMoat' }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.warn('Drawbridge: Content script may not be ready yet:', chrome.runtime.lastError.message);
-        // This is okay - content script will be injected on next page load
-      } else {
-        console.log('Drawbridge: Sidebar toggled successfully');
-      }
-    });
+    await ensureContentScriptsReady(tab.id);
+    await sendTabMessage(tab.id, { action: 'toggleMoat' });
+    console.log('Drawbridge: Sidebar toggled successfully');
   } catch (error) {
-    console.error('Drawbridge: Failed to toggle sidebar:', error);
+    console.warn('Drawbridge: Failed to open on this page:', error.message);
   }
-});
+}
+
+// Handle extension icon click - toggle Drawbridge sidebar
+chrome.action.onClicked.addListener(handleActionClick);
 
 // Handle screenshot capture requests from content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -53,3 +161,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Required for async sendResponse
   }
 });
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    RESTRICTED_URL_PREFIXES,
+    isRestrictedTab,
+    needsManualInjection,
+    handleActionClick,
+    ensureContentScriptsReady,
+    injectManifestContentScripts,
+    injectMoatScript
+  };
+}

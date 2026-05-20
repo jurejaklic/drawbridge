@@ -1,10 +1,18 @@
 // Moat Moat - Sidebar Component
 (function() {
+  if (window.__drawbridgeMoatLoaded) {
+    return;
+  }
+  window.__drawbridgeMoatLoaded = true;
+
   let moat = null;
   let isVisible = false;
+  let ownsMoatElement = false;
   let draggedItem = null;
   let moatPosition = 'bottom'; // 'right', 'bottom', or 'left' - default to bottom
   let currentTabFilter = 'to do'; // Currently selected tab filter
+  const MOAT_ELEMENT_ID = 'moat-moat';
+  const MOAT_VISIBLE_CLASS = 'float-moat-visible';
   
   // ===== THUMBNAIL CACHE =====
   const thumbnailCache = new Map(); // Cache for loaded thumbnail URLs
@@ -1065,13 +1073,28 @@
 
   // Create Moat sidebar
   function createMoat() {
+    const existingMoat = document.getElementById(MOAT_ELEMENT_ID);
+    if (existingMoat) {
+      if (existingMoat.classList.contains(MOAT_VISIBLE_CLASS)) {
+        console.log('Moat: Found existing visible sidebar, adopting it for toggle');
+        moat = existingMoat;
+        isVisible = true;
+        ownsMoatElement = false;
+        return;
+      }
+
+      console.log('Moat: Removing stale hidden sidebar before creating a new one');
+      existingMoat.remove();
+    }
+
     // Ensure fonts are loaded before creating UI
     ensureGoogleFontsLoaded();
     
     console.log('Moat: createMoat called, creating sidebar element...');
     moat = document.createElement('div');
-    moat.id = 'moat-moat';
+    moat.id = MOAT_ELEMENT_ID;
     moat.className = 'float-moat';
+    ownsMoatElement = true;
     console.log('Moat: Element created with class:', moat.className);
     moat.innerHTML = `
               <div class="float-moat-top-bar">
@@ -2861,7 +2884,7 @@
       createMoat();
     }
     console.log('Moat: Adding float-moat-visible class...');
-    moat.classList.add('float-moat-visible');
+    moat.classList.add(MOAT_VISIBLE_CLASS);
     isVisible = true;
     
     // PERSIST VISIBILITY STATE
@@ -2883,7 +2906,7 @@
   function hideMoat() {
     console.log('Moat: hideMoat called, moat exists:', !!moat);
     if (moat) {
-      moat.classList.remove('float-moat-visible');
+      moat.classList.remove(MOAT_VISIBLE_CLASS);
       isVisible = false;
       
       // Remove any active element highlight
@@ -2898,11 +2921,37 @@
       
       // Reset animations when hiding
       resetFloatingAnimation();
+
+      if (!ownsMoatElement) {
+        console.log('Moat: Removing stale adopted sidebar after close');
+        moat.remove();
+        moat = null;
+      }
     }
+  }
+
+  function syncMoatStateFromDom() {
+    const existingMoat = document.getElementById(MOAT_ELEMENT_ID);
+    if (!existingMoat) {
+      if (moat && !document.body.contains(moat)) {
+        moat = null;
+      }
+      isVisible = false;
+      return;
+    }
+
+    if (existingMoat !== moat) {
+      console.log('Moat: Syncing sidebar state from existing DOM element');
+      moat = existingMoat;
+      ownsMoatElement = false;
+    }
+
+    isVisible = moat.classList.contains(MOAT_VISIBLE_CLASS);
   }
 
   // Toggle Moat
   async function toggleMoat() {
+    syncMoatStateFromDom();
     console.log('Moat: toggleMoat called, current isVisible:', isVisible);
     if (isVisible) {
       console.log('Moat: Hiding sidebar...');
@@ -3926,4 +3975,4 @@
     console.log('🌊 Moat: Animation system reset');
   }
 
-})(); 
+})();
