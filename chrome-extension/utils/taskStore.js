@@ -512,6 +512,46 @@ class TaskStore {
     }
 
     /**
+     * Delete all completed tasks and their screenshots, preserving a JSON backup first.
+     * @returns {Promise<Object>} Promise resolving to cleanup results
+     */
+    async deleteCompletedTasks() {
+        if (!this.directoryHandle) {
+            console.warn('Cannot delete completed tasks: no directory handle');
+            return { success: false, deletedCount: 0, screenshotErrors: [] };
+        }
+
+        const completedTasks = this.tasks.filter(task => task.status === TASK_STATUS.DONE);
+
+        if (completedTasks.length === 0) {
+            return { success: true, deletedCount: 0, message: 'No completed tasks to delete' };
+        }
+
+        await this.createBackup();
+
+        const screenshotErrors = [];
+        for (const task of completedTasks) {
+            if (task.screenshotPath) {
+                const deleted = await this.deleteScreenshotFile(task.screenshotPath);
+                if (!deleted) {
+                    screenshotErrors.push(task.id);
+                }
+            }
+        }
+
+        const completedIds = new Set(completedTasks.map(task => task.id));
+        this.tasks = this.tasks.filter(task => !completedIds.has(task.id));
+
+        await this.saveTasksToFile();
+
+        return {
+            success: true,
+            deletedCount: completedTasks.length,
+            screenshotErrors
+        };
+    }
+
+    /**
      * Create backup of current tasks before risky operations
      * @returns {Promise<boolean>} Promise resolving to backup success
      */

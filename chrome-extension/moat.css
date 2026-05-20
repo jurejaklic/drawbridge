@@ -1503,6 +1503,13 @@ body.float-drawing-mode * {
   overflow: hidden;
 }
 
+.float-moat-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .float-moat-time {
   font-size: 12px;
   font-weight: 500;
@@ -1511,6 +1518,7 @@ body.float-drawing-mode * {
   flex-shrink: 0;
 }
 
+.float-moat-action-btn,
 .float-moat-remove {
   background: transparent;
   border: 1px solid var(--moat-border);
@@ -1529,8 +1537,14 @@ body.float-drawing-mode * {
   opacity: 0;
 }
 
+.float-moat-item:hover .float-moat-action-btn,
 .float-moat-item:hover .float-moat-remove {
   opacity: 1;
+}
+
+.float-moat-action-btn:hover {
+  background: var(--moat-bg-tertiary);
+  color: var(--moat-text-primary);
 }
 
 .float-moat-remove:hover {
@@ -2059,6 +2073,20 @@ body.float-drawing-mode * {
   box-sizing: border-box;
 }
 
+.float-badge.delete-completed-badge {
+  background: #DC2626;
+  color: white;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0 6px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 20px;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
 /* More Menu */
 .float-more-menu {
   position: fixed;
@@ -2256,6 +2284,111 @@ body.float-drawing-mode * {
 
 .float-modal-button-danger:hover {
   background: #B91C1C;
+}
+
+.float-task-detail-modal {
+  max-width: 640px;
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.float-task-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.float-task-detail-header h2 {
+  margin: 0;
+  color: var(--moat-text-primary);
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.float-task-detail-close {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--moat-border);
+  border-radius: 6px;
+  background: var(--moat-bg-secondary);
+  color: var(--moat-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.float-task-detail-close:hover {
+  color: var(--moat-text-primary);
+  background: var(--moat-bg-tertiary);
+}
+
+.float-task-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.float-task-detail-grid > div {
+  border: 1px solid var(--moat-border);
+  border-radius: 8px;
+  background: var(--moat-bg-secondary);
+  padding: 10px;
+  min-width: 0;
+}
+
+.float-task-detail-grid span,
+.float-task-detail-label {
+  display: block;
+  color: var(--moat-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.float-task-detail-grid strong,
+.float-task-detail-grid code {
+  color: var(--moat-text-primary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.float-task-detail-text,
+.float-task-detail-pre,
+.float-task-detail-json pre {
+  border: 1px solid var(--moat-border);
+  border-radius: 8px;
+  background: var(--moat-bg-secondary);
+  color: var(--moat-text-primary);
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0 0 16px 0;
+}
+
+.float-task-detail-json {
+  margin-bottom: 16px;
+  color: var(--moat-text-secondary);
+}
+
+.float-task-detail-json summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 520px) {
+  .float-task-detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Float Badge styles removed - badge feature disabled */

@@ -1498,6 +1498,16 @@
         <span>Clear screenshots</span>
         <span class="float-badge clear-screenshots-badge" id="clearScreenshotsBadge" style="margin-left: auto; display: none;"></span>
       </div>
+      <div class="float-project-menu-item" data-action="delete-completed">
+        <svg style="width: 12px; height: 12px; fill: #6B7280;" viewBox="0 0 24 24">
+          <rect x="3" y="5" width="18" height="2"/>
+          <rect x="5" y="8" width="14" height="13" fill="none" stroke="#6B7280" stroke-width="2"/>
+          <rect x="8" y="11" width="2" height="7"/>
+          <rect x="14" y="11" width="2" height="7"/>
+        </svg>
+        <span>Delete completed tasks</span>
+        <span class="float-badge delete-completed-badge" id="deleteCompletedBadge" style="margin-left: auto; display: none;"></span>
+      </div>
       <div class="float-project-menu-item float-project-menu-divider" data-action="disconnect">
         <svg style="width: 12px; height: 12px; fill: #DC2626;" viewBox="0 0 24 24">
           <polygon points="2 13 1 13 1 11 2 11 2 9 3 9 3 8 4 8 4 7 5 7 5 6 7 6 7 5 15 5 15 6 14 6 14 7 13 7 13 6 11 6 11 7 9 7 9 8 8 8 8 9 7 9 7 11 6 11 6 13 7 13 7 14 6 14 6 15 5 15 5 16 3 16 3 15 2 15 2 13"/>
@@ -1526,11 +1536,17 @@
     
     // Update badge count for clear screenshots option
     if (canUseNewTaskSystem() && window.taskStore) {
-      const completedTasks = window.taskStore.getTasks().filter(t => t.status === 'done' && t.screenshotPath);
+      const allCompletedTasks = window.taskStore.getTasks().filter(t => t.status === 'done');
+      const completedTasks = allCompletedTasks.filter(t => t.screenshotPath);
       const badge = menu.querySelector('#clearScreenshotsBadge');
       if (badge && completedTasks.length > 0) {
         badge.textContent = completedTasks.length;
         badge.style.display = 'inline-block';
+      }
+      const deleteBadge = menu.querySelector('#deleteCompletedBadge');
+      if (deleteBadge && allCompletedTasks.length > 0) {
+        deleteBadge.textContent = allCompletedTasks.length;
+        deleteBadge.style.display = 'inline-flex';
       }
     }
     
@@ -1547,6 +1563,8 @@
           refreshTasks(false); // Manual refresh should show notifications
         } else if (action === 'clear-screenshots') {
           await clearCompletedScreenshots();
+        } else if (action === 'delete-completed') {
+          await deleteCompletedTasks();
         }
       }
       menu.remove();
@@ -1835,6 +1853,47 @@
     }
   }
 
+  // Delete completed tasks and associated screenshots
+  async function deleteCompletedTasks() {
+    if (!canUseNewTaskSystem() || !window.taskStore) {
+      showNotification('Completed tasks can only be deleted in new task system', 'error');
+      return;
+    }
+
+    try {
+      const completedTasks = window.taskStore.getTasks().filter(t => t.status === 'done');
+
+      if (completedTasks.length === 0) {
+        showNotification('No completed tasks found', 'info');
+        return;
+      }
+
+      const confirmed = await showDeleteCompletedTasksConfirmation(completedTasks.length);
+      if (!confirmed) return;
+
+      showNotification('Deleting completed tasks...', 'info');
+
+      const result = await window.taskStore.deleteCompletedTasks();
+
+      if (result.success) {
+        if (window.markdownGenerator) {
+          const allTasks = window.taskStore.getAllTasksChronological();
+          await window.markdownGenerator.rebuildMarkdownFile(allTasks);
+        }
+
+        const message = `Deleted ${result.deletedCount} completed task${result.deletedCount !== 1 ? 's' : ''}`;
+        showNotification(message, 'success');
+        console.log('✅ Completed tasks deleted:', result);
+        await refreshTasks(true);
+      } else {
+        showNotification('Failed to delete completed tasks', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting completed tasks:', error);
+      showNotification(`Error: ${error.message}`, 'error');
+    }
+  }
+
   // Show confirmation dialog for clearing screenshots
   function showClearScreenshotsConfirmation(count) {
     return new Promise((resolve) => {
@@ -1856,6 +1915,48 @@
             </button>
             <button class="float-modal-button float-modal-button-danger" data-action="confirm">
               Clear Screenshots
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      modal.addEventListener('click', (e) => {
+        const button = e.target.closest('[data-action]');
+        if (button) {
+          const action = button.dataset.action;
+          modal.remove();
+          resolve(action === 'confirm');
+        } else if (e.target === modal) {
+          modal.remove();
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  // Show confirmation dialog for deleting completed tasks
+  function showDeleteCompletedTasksConfirmation(count) {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.className = 'float-modal-overlay';
+      modal.innerHTML = `
+        <div class="float-modal" style="max-width: 400px;">
+          <h2 style="margin: 0 0 12px 0; font-size: 18px; font-weight: 600; color: var(--moat-text-primary);">
+            Delete Completed Tasks?
+          </h2>
+          <p style="margin: 0 0 20px 0; font-size: 14px; color: var(--moat-text-secondary); line-height: 1.5;">
+            This will delete <strong>${count} completed task${count !== 1 ? 's' : ''}</strong> and any associated screenshots.
+            <br><br>
+            Drawbridge will create a backup JSON file before deleting.
+          </p>
+          <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button class="float-modal-button float-modal-button-secondary" data-action="cancel">
+              Cancel
+            </button>
+            <button class="float-modal-button float-modal-button-danger" data-action="confirm">
+              Delete Tasks
             </button>
           </div>
         </div>
@@ -2652,6 +2753,7 @@
     if (!moat) return;
     
     console.log('Moat: Rendering empty sidebar');
+    updateTabBadges([]);
     const queueContainer = moat.querySelector('.float-moat-queue');
     const tabsHeaderContainer = moat.querySelector('.float-moat-tabs-header');
     const tabsBelowContainer = moat.querySelector('.float-moat-tabs-below-header');
@@ -3008,12 +3110,161 @@
   }
   
   // Render simple task item without emojis
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function getTaskFromRenderedId(id) {
+    if (canUseNewTaskSystem() && window.taskStore) {
+      return window.taskStore.getTaskById(id);
+    }
+
+    const queue = JSON.parse(localStorage.getItem('moat.queue') || '[]');
+    const annotation = queue.find(a => a.id === id);
+    return annotation ? convertAnnotationToTask(annotation) : null;
+  }
+
+  function formatTaskPrompt(task) {
+    const lines = [
+      `Drawbridge task: ${task.title || 'UI annotation'}`,
+      '',
+      task.comment || task.content || '',
+      '',
+      `Status: ${task.status || 'to do'}`,
+      `URL: ${task.pageUrl || window.location.href || 'Unknown'}`,
+      `Selector: ${task.selector || 'Freeform rectangle'}`,
+      `Screenshot: ${task.screenshotPath || 'None'}`
+    ];
+
+    if (task.boundingRect) {
+      lines.push(`Bounds: ${JSON.stringify(task.boundingRect)}`);
+    }
+
+    return lines.filter((line, index) => line || index < 3).join('\n');
+  }
+
+  async function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+  }
+
+  async function copyTaskPrompt(id) {
+    const task = getTaskFromRenderedId(id);
+    if (!task) {
+      showNotification('Task not found for copy', 'error');
+      return;
+    }
+
+    try {
+      await copyTextToClipboard(formatTaskPrompt(task));
+      showNotification('Task prompt copied', 'success');
+    } catch (error) {
+      console.error('Could not copy task prompt:', error);
+      showNotification('Could not copy task prompt', 'error');
+    }
+  }
+
+  function showTaskDetails(id) {
+    const task = getTaskFromRenderedId(id);
+    if (!task) {
+      showNotification('Task not found', 'error');
+      return;
+    }
+
+    const prompt = formatTaskPrompt(task);
+    const json = JSON.stringify(task, null, 2);
+    const modal = document.createElement('div');
+    modal.className = 'float-modal-overlay';
+    modal.innerHTML = `
+      <div class="float-modal float-task-detail-modal">
+        <div class="float-task-detail-header">
+          <h2>${escapeHtml(task.title || 'Task details')}</h2>
+          <button class="float-task-detail-close" data-action="close" title="Close">
+            <svg class="float-icon" viewBox="0 0 24 24">
+              <polygon points="15 13 16 13 16 14 17 14 17 15 18 15 18 16 19 16 19 17 20 17 20 18 21 18 21 19 22 19 22 20 21 20 21 21 20 21 20 22 19 22 19 21 18 21 18 20 17 20 17 19 16 19 16 18 15 18 15 17 14 17 14 16 13 16 13 15 11 15 11 16 10 16 10 17 9 17 9 18 8 18 8 19 7 19 7 20 6 20 6 21 5 21 5 22 4 22 4 21 3 21 3 20 2 20 2 19 3 19 3 18 4 18 4 17 5 17 5 16 6 16 6 15 7 15 7 14 8 14 8 13 9 13 9 11 8 11 8 10 7 10 7 9 6 9 6 8 5 8 5 7 4 7 4 6 3 6 3 5 2 5 2 4 3 4 3 3 4 3 4 2 5 2 5 3 6 3 6 4 7 4 7 5 8 5 8 6 9 6 9 7 10 7 10 8 11 8 11 9 13 9 13 8 14 8 14 7 15 7 15 6 16 6 16 5 17 5 17 4 18 4 18 3 19 3 19 2 20 2 20 3 21 3 21 4 22 4 22 5 21 5 21 6 20 6 20 7 19 7 19 8 18 8 18 9 17 9 17 10 16 10 16 11 15 11 15 13"/>
+            </svg>
+          </button>
+        </div>
+        <div class="float-task-detail-grid">
+          <div>
+            <span>Status</span>
+            <strong>${escapeHtml(task.status || 'to do')}</strong>
+          </div>
+          <div>
+            <span>Created</span>
+            <strong>${escapeHtml(formatTimeAgo(task.timestamp || task.createdAt))}</strong>
+          </div>
+          <div>
+            <span>Selector</span>
+            <code>${escapeHtml(task.selector || 'Freeform rectangle')}</code>
+          </div>
+          <div>
+            <span>Screenshot</span>
+            <code>${escapeHtml(task.screenshotPath || 'None')}</code>
+          </div>
+        </div>
+        <label class="float-task-detail-label">Comment</label>
+        <div class="float-task-detail-text">${escapeHtml(task.comment || task.content || 'No content available')}</div>
+        <label class="float-task-detail-label">Assistant Prompt</label>
+        <pre class="float-task-detail-pre">${escapeHtml(prompt)}</pre>
+        <details class="float-task-detail-json">
+          <summary>Raw JSON</summary>
+          <pre>${escapeHtml(json)}</pre>
+        </details>
+        <div class="float-modal-actions">
+          <button class="float-modal-button float-modal-button-secondary" data-action="copy-json">Copy JSON</button>
+          <button class="float-modal-button float-modal-confirm" data-action="copy-prompt">Copy Prompt</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', async (e) => {
+      const button = e.target.closest('[data-action]');
+      if (!button) {
+        if (e.target === modal) modal.remove();
+        return;
+      }
+
+      const action = button.dataset.action;
+      if (action === 'close') {
+        modal.remove();
+      } else if (action === 'copy-prompt') {
+        await copyTextToClipboard(prompt);
+        showNotification('Task prompt copied', 'success');
+      } else if (action === 'copy-json') {
+        await copyTextToClipboard(json);
+        showNotification('Task JSON copied', 'success');
+      }
+    });
+  }
+
   function renderSimpleTaskItem(task) {
-    const isCompleted = ['done', 'resolved'].includes(task.status);
-    const statusClass = `float-status-${task.status.replace(/\s+/g, '-')}`;
-    const statusText = getStatusText(task.status);
+    const taskStatus = task.status || 'to do';
+    const isCompleted = ['done', 'resolved'].includes(taskStatus);
+    const statusClass = `float-status-${taskStatus.replace(/\s+/g, '-')}`;
     const timeAgo = formatTimeAgo(task.timestamp || task.createdAt);
     const hasScreenshot = task.screenshotPath && window.directoryHandle;
+    const taskContent = task.content || task.comment || 'No content available';
+    const taskSelector = task.selector || '';
     
     // Calculate thumbnail focus point based on click position in context viewport
     let thumbnailStyle = '';
@@ -3040,19 +3291,35 @@
           <div class="float-moat-item-content-area">
             <div class="float-moat-item-header">
               <div class="float-moat-status-and-time">
-                <span class="float-moat-time">${timeAgo}</span>
+                <span class="float-moat-time">${escapeHtml(timeAgo)}</span>
               </div>
-              ${!hasScreenshot && (task.format === 'current' || !task.format) ? 
-                `<button class="float-moat-remove" data-id="${task.id}" title="Remove task">
+              <div class="float-moat-item-actions">
+                <button class="float-moat-action-btn float-moat-details" data-id="${escapeHtml(task.id)}" title="View task details">
+                  <svg class="float-icon" viewBox="0 0 24 24">
+                    <rect x="4" y="3" width="16" height="18" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <rect x="8" y="8" width="8" height="2"/>
+                    <rect x="8" y="12" width="8" height="2"/>
+                    <rect x="8" y="16" width="5" height="2"/>
+                  </svg>
+                </button>
+                <button class="float-moat-action-btn float-moat-copy" data-id="${escapeHtml(task.id)}" title="Copy task prompt">
+                  <svg class="float-icon" viewBox="0 0 24 24">
+                    <rect x="8" y="8" width="11" height="13" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <polyline points="5 16 5 3 16 3 16 6" fill="none" stroke="currentColor" stroke-width="2"/>
+                  </svg>
+                </button>
+                ${!hasScreenshot && (task.format === 'current' || !task.format) ? 
+                  `<button class="float-moat-action-btn float-moat-remove" data-id="${escapeHtml(task.id)}" title="Remove task">
                   <svg class="float-icon" viewBox="0 0 24 24">
                     <polygon points="15 13 16 13 16 14 17 14 17 15 18 15 18 16 19 16 19 17 20 17 20 18 21 18 21 19 22 19 22 20 21 20 21 21 20 21 20 22 19 22 19 21 18 21 18 20 17 20 17 19 16 19 16 18 15 18 15 17 14 17 14 16 13 16 13 15 11 15 11 16 10 16 10 17 9 17 9 18 8 18 8 19 7 19 7 20 6 20 6 21 5 21 5 22 4 22 4 21 3 21 3 20 2 20 2 19 3 19 3 18 4 18 4 17 5 17 5 16 6 16 6 15 7 15 7 14 8 14 8 13 9 13 9 11 8 11 8 10 7 10 7 9 6 9 6 8 5 8 5 7 4 7 4 6 3 6 3 5 2 5 2 4 3 4 3 3 4 3 4 2 5 2 5 3 6 3 6 4 7 4 7 5 8 5 8 6 9 6 9 7 10 7 10 8 11 8 11 9 13 9 13 8 14 8 14 7 15 7 15 6 16 6 16 5 17 5 17 4 18 4 18 3 19 3 19 2 20 2 20 3 21 3 21 4 22 4 22 5 21 5 21 6 20 6 20 7 19 7 19 8 18 8 18 9 17 9 17 10 16 10 16 11 15 11 15 13"/>
                   </svg>
-                </button>` : 
-                ''
-              }
+                  </button>` : 
+                  ''
+                }
+              </div>
             </div>
-            <div class="float-moat-content">${task.content || task.comment || 'No content available'}</div>
-            ${task.selector ? `<span class="float-moat-selector">${task.selector}</span>` : ''}
+            <div class="float-moat-content">${escapeHtml(taskContent)}</div>
+            ${taskSelector ? `<span class="float-moat-selector">${escapeHtml(taskSelector)}</span>` : ''}
           </div>
           ${hasScreenshot ? 
             `<div class="float-moat-thumbnail-container" data-task-id="${task.id}">
@@ -3233,8 +3500,8 @@
       
       // Click to highlight element (only for current session items)
       item.addEventListener('click', (e) => {
-        // Don't trigger if clicking remove button or thumbnail
-        if (e.target.closest('.float-moat-remove')) return;
+        // Don't trigger if clicking task actions or thumbnail
+        if (e.target.closest('.float-moat-action-btn')) return;
         if (e.target.closest('.float-moat-thumbnail-container')) return;
         
         const dataType = item.dataset.type;
@@ -3273,6 +3540,22 @@
         e.stopPropagation();
         console.log('🗑️ Moat: Remove button clicked for task ID:', btn.dataset.id);
         await removeAnnotation(btn.dataset.id);
+      });
+    });
+
+    // Detail buttons
+    queueContainer.querySelectorAll('.float-moat-details').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showTaskDetails(btn.dataset.id);
+      });
+    });
+
+    // Copy buttons
+    queueContainer.querySelectorAll('.float-moat-copy').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await copyTaskPrompt(btn.dataset.id);
       });
     });
     
