@@ -11,8 +11,10 @@
   let draggedItem = null;
   let moatPosition = 'bottom'; // 'right', 'bottom', or 'left' - default to bottom
   let currentTabFilter = 'to do'; // Currently selected tab filter
+  let isCollapsed = false;
   const MOAT_ELEMENT_ID = 'moat-moat';
   const MOAT_VISIBLE_CLASS = 'float-moat-visible';
+  const MOAT_COLLAPSED_CLASS = 'float-moat-collapsed';
   
   // ===== THUMBNAIL CACHE =====
   const thumbnailCache = new Map(); // Cache for loaded thumbnail URLs
@@ -1079,6 +1081,7 @@
         console.log('Moat: Found existing visible sidebar, adopting it for toggle');
         moat = existingMoat;
         isVisible = true;
+        isCollapsed = existingMoat.classList.contains(MOAT_COLLAPSED_CLASS);
         ownsMoatElement = false;
         return;
       }
@@ -1160,7 +1163,12 @@
                   <polygon points="14 19 15 19 15 21 14 21 14 22 13 22 13 23 11 23 11 22 10 22 10 21 9 21 9 19 10 19 10 18 11 18 11 17 13 17 13 18 14 18 14 19"/>
                 </svg>
               </button>
-              <button class="float-moat-close" title="Close Moat">
+              <button class="float-moat-collapse-toggle" title="Collapse Drawbridge" aria-label="Collapse Drawbridge">
+                <svg class="float-icon float-collapse-icon" viewBox="0 0 24 24">
+                  <polygon points="5 7 7 7 7 8 8 8 8 9 9 9 9 10 10 10 10 11 11 11 11 12 13 12 13 11 14 11 14 10 15 10 15 9 16 9 16 8 17 8 17 7 19 7 19 8 20 8 20 10 19 10 19 11 18 11 18 12 17 12 17 13 16 13 16 14 15 14 15 15 14 15 14 16 13 16 13 17 11 17 11 16 10 16 10 15 9 15 9 14 8 14 8 13 7 13 7 12 6 12 6 11 5 11 5 10 4 10 4 8 5 8 5 7"/>
+                </svg>
+              </button>
+              <button class="float-moat-close" title="Close Drawbridge" aria-label="Close Drawbridge">
                 <svg class="float-icon" viewBox="0 0 24 24">
                   <polygon points="15 13 16 13 16 14 17 14 17 15 18 15 18 16 19 16 19 17 20 17 20 18 21 18 21 19 22 19 22 20 21 20 21 21 20 21 20 22 19 22 19 21 18 21 18 20 17 20 17 19 16 19 16 18 15 18 15 17 14 17 14 16 13 16 13 15 11 15 11 16 10 16 10 17 9 17 9 18 8 18 8 19 7 19 7 20 6 20 6 21 5 21 5 22 4 22 4 21 3 21 3 20 2 20 2 19 3 19 3 18 4 18 4 17 5 17 5 16 6 16 6 15 7 15 7 14 8 14 8 13 9 13 9 11 8 11 8 10 7 10 7 9 6 9 6 8 5 8 5 7 4 7 4 6 3 6 3 5 2 5 2 4 3 4 3 3 4 3 4 2 5 2 5 3 6 3 6 4 7 4 7 5 8 5 8 6 9 6 9 7 10 7 10 8 11 8 11 9 13 9 13 8 14 8 14 7 15 7 15 6 16 6 16 5 17 5 17 4 18 4 18 3 19 3 19 2 20 2 20 3 21 3 21 4 22 4 22 5 21 5 21 6 20 6 20 7 19 7 19 8 18 8 18 9 17 9 17 10 16 10 16 11 15 11 15 13"/>
                 </svg>
@@ -1221,7 +1229,15 @@
     console.log('Moat: Sidebar element added to DOM');
     
     // Event listeners
-    moat.querySelector('.float-moat-close').addEventListener('click', hideMoat);
+    moat.querySelector('.float-moat-close').addEventListener('click', hideMoatCompletely);
+
+    const collapseToggle = moat.querySelector('.float-moat-collapse-toggle');
+    if (collapseToggle) {
+      collapseToggle.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleMoatCollapsed();
+      });
+    }
     
     // Tools dropdown button functionality
     const toolsDropdown = moat.querySelector('.float-moat-tools-dropdown');
@@ -2187,6 +2203,40 @@
     console.log('Moat: toggleMoatPosition called (legacy function)');
   }
 
+  function updateCollapsedControls() {
+    if (!moat) return;
+
+    const closeButton = moat.querySelector('.float-moat-close');
+    if (closeButton) {
+      closeButton.title = 'Close Drawbridge';
+      closeButton.setAttribute('aria-label', 'Close Drawbridge');
+    }
+
+    const collapseToggle = moat.querySelector('.float-moat-collapse-toggle');
+    if (collapseToggle) {
+      const label = isCollapsed ? 'Expand Drawbridge' : 'Collapse Drawbridge';
+      collapseToggle.title = label;
+      collapseToggle.setAttribute('aria-label', label);
+    }
+  }
+
+  function setMoatCollapsed(collapsed, persist = true) {
+    isCollapsed = collapsed;
+
+    if (moat) {
+      moat.classList.toggle(MOAT_COLLAPSED_CLASS, collapsed);
+      updateCollapsedControls();
+    }
+
+    if (persist) {
+      localStorage.setItem('moat.collapsed', collapsed ? 'true' : 'false');
+    }
+  }
+
+  function getSavedCollapsedState() {
+    return localStorage.getItem('moat.collapsed') === 'true';
+  }
+
   // Set Moat position
   function setMoatPosition(position) {
     moatPosition = position;
@@ -2230,7 +2280,7 @@
     
     if (savedVisibility === 'true') {
       console.log('Moat: Auto-showing moat based on saved state');
-      await showMoat();
+      await showMoat({ collapsed: getSavedCollapsedState() });
     } else {
       console.log('Moat: Moat will remain hidden based on saved state');
     }
@@ -2287,6 +2337,7 @@
     // Check every 2 seconds if moat is still in DOM when it should be visible
     setInterval(() => {
       const savedVisibility = localStorage.getItem('moat.visible');
+      const shouldBeCollapsed = getSavedCollapsedState();
       if (savedVisibility === 'true') {
         // Check if moat element still exists in DOM
         const existingMoat = document.getElementById('moat-moat');
@@ -2294,10 +2345,15 @@
           console.log('Moat: Moat disappeared from DOM, recreating...');
           createMoat();
           moat.classList.add('float-moat-visible');
+          setMoatCollapsed(shouldBeCollapsed, false);
           showNotification('Moat restored');
         } else if (existingMoat && !existingMoat.classList.contains('float-moat-visible') && isVisible) {
           console.log('Moat: Moat exists but not visible, restoring visibility...');
           existingMoat.classList.add('float-moat-visible');
+          setMoatCollapsed(shouldBeCollapsed, false);
+        } else if (existingMoat && existingMoat.classList.contains('float-moat-visible')) {
+          moat = existingMoat;
+          setMoatCollapsed(shouldBeCollapsed, false);
         }
       }
     }, 2000);
@@ -2979,7 +3035,8 @@
   }
 
   // Show Moat
-  async function showMoat() {
+  async function showMoat(options = {}) {
+    const { collapsed = false } = options;
     console.log('Moat: showMoat called, moat exists:', !!moat);
     if (!moat) {
       console.log('Moat: Creating moat element...');
@@ -2988,6 +3045,7 @@
     console.log('Moat: Adding float-moat-visible class...');
     moat.classList.add(MOAT_VISIBLE_CLASS);
     isVisible = true;
+    setMoatCollapsed(collapsed);
     
     // PERSIST VISIBILITY STATE
     localStorage.setItem('moat.visible', 'true');
@@ -3004,12 +3062,39 @@
     await refreshTasks(); // Use refreshTasks for comprehensive loading
   }
 
-  // Hide Moat
-  function hideMoat() {
+  function expandMoat() {
+    return showMoat({ collapsed: false });
+  }
+
+  function collapseMoat() {
+    console.log('Moat: collapseMoat called, moat exists:', !!moat);
+    if (!moat) return;
+
+    closeAllMenus();
+    moat.classList.add(MOAT_VISIBLE_CLASS);
+    isVisible = true;
+    setMoatCollapsed(true);
+    localStorage.setItem('moat.visible', 'true');
+
+    removeElementHighlight();
+    resetFloatingAnimation();
+  }
+
+  function toggleMoatCollapsed() {
+    if (isCollapsed) {
+      expandMoat();
+      return;
+    }
+
+    collapseMoat();
+  }
+
+  function hideMoatCompletely() {
     console.log('Moat: hideMoat called, moat exists:', !!moat);
     if (moat) {
       moat.classList.remove(MOAT_VISIBLE_CLASS);
       isVisible = false;
+      setMoatCollapsed(false);
       
       // Remove any active element highlight
       removeElementHighlight();
@@ -3032,6 +3117,10 @@
     }
   }
 
+  function hideMoat() {
+    hideMoatCompletely();
+  }
+
   function syncMoatStateFromDom() {
     const existingMoat = document.getElementById(MOAT_ELEMENT_ID);
     if (!existingMoat) {
@@ -3049,6 +3138,7 @@
     }
 
     isVisible = moat.classList.contains(MOAT_VISIBLE_CLASS);
+    isCollapsed = moat.classList.contains(MOAT_COLLAPSED_CLASS);
   }
 
   // Toggle Moat
@@ -3057,10 +3147,10 @@
     console.log('Moat: toggleMoat called, current isVisible:', isVisible);
     if (isVisible) {
       console.log('Moat: Hiding sidebar...');
-      hideMoat();
+      hideMoatCompletely();
     } else {
       console.log('Moat: Showing sidebar...');
-      await showMoat();
+      await expandMoat();
     }
   }
 

@@ -29,6 +29,7 @@
   --moat-shadow-lg: rgba(0, 0, 0, 0.15);
   --moat-notification-bg: #1f2937;
   --moat-notification-text: #ffffff;
+  --moat-collapsed-bar-size: 49px;
   
   /* Scrollbar colors */
   --moat-scrollbar-track: transparent;
@@ -499,6 +500,26 @@ body.float-drawing-mode * {
   flex-direction: column;
 }
 
+.float-moat.float-moat-collapsed {
+  overflow: visible;
+}
+
+.float-moat.float-moat-collapsed .float-moat-top-bar {
+  min-height: var(--moat-collapsed-bar-size);
+  box-sizing: border-box;
+}
+
+.float-moat.float-moat-collapsed .float-moat-top-bar button {
+  cursor: pointer;
+}
+
+.float-moat.float-moat-collapsed .float-moat-queue,
+.float-moat.float-moat-collapsed .float-moat-tabs-header,
+.float-moat.float-moat-collapsed .float-moat-tabs-below-header,
+.float-moat.float-moat-collapsed .float-header-notifications {
+  display: none !important;
+}
+
 /* Right position (default) */
 .float-moat.float-moat-right {
   top: 0;
@@ -525,6 +546,13 @@ body.float-drawing-mode * {
 
 .float-moat.float-moat-left.float-moat-visible {
   left: 0;
+}
+
+.float-moat.float-moat-right.float-moat-collapsed,
+.float-moat.float-moat-left.float-moat-collapsed {
+  height: var(--moat-collapsed-bar-size);
+  min-height: var(--moat-collapsed-bar-size);
+  max-height: var(--moat-collapsed-bar-size);
 }
 
 /* Right position - Compact top bar layout */
@@ -739,6 +767,17 @@ body.float-drawing-mode * {
   transform: translateY(0);
 }
 
+.float-moat.float-moat-bottom.float-moat-collapsed {
+  min-height: var(--moat-collapsed-bar-size);
+  height: var(--moat-collapsed-bar-size);
+  max-height: var(--moat-collapsed-bar-size);
+}
+
+.float-moat.float-moat-bottom.float-moat-collapsed .float-moat-top-bar {
+  border-top: 1px solid var(--moat-border);
+  border-bottom: none;
+}
+
 /* Bottom position - Top control bar */
 .float-moat.float-moat-bottom .float-moat-top-bar {
   display: flex;
@@ -780,6 +819,11 @@ body.float-drawing-mode * {
   min-width: 0;
   max-width: calc(50% - 120px); /* Ensure space for centered tabs */
   overflow: hidden;
+}
+
+.float-moat.float-moat-bottom.float-moat-collapsed .float-moat-header,
+.float-moat.float-moat-bottom.float-moat-collapsed .float-moat-right-controls {
+  max-width: none;
 }
 
 .float-moat.float-moat-bottom .float-moat-project-status {
@@ -1057,6 +1101,14 @@ body.float-drawing-mode * {
   height: 12px;
   fill: currentColor;
   transition: all 0.2s;
+}
+
+.float-collapse-icon {
+  transform-origin: center;
+}
+
+.float-moat.float-moat-collapsed .float-collapse-icon {
+  transform: rotate(180deg);
 }
 
 /* Drawbridge Logo Icon */
