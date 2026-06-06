@@ -1330,6 +1330,14 @@ body.float-drawing-mode * {
   transform-origin: center;
 }
 
+.float-moat.float-moat-right:not(.float-moat-collapsed) .float-collapse-icon {
+  transform: rotate(-90deg);
+}
+
+.float-moat.float-moat-left:not(.float-moat-collapsed) .float-collapse-icon {
+  transform: rotate(90deg);
+}
+
 .float-moat.float-moat-collapsed .float-collapse-icon {
   transform: rotate(180deg);
 }
