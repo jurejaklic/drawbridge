@@ -58,6 +58,12 @@ Tasks appear in the drawer and sync to your connected project.
 
 ![Drawbridge rectangle annotation](https://github.com/breschio/drawbridge-media/raw/main/drawbridge-rectangle.gif)
 
+## Drawer Layout
+
+Drawbridge can dock to the bottom, left, or right side of the viewport from the More menu. Use the chevron button to collapse or expand the drawer.
+
+When collapsed on the left or right side, Drawbridge becomes a slim rail with the project button, tools button, and color-coded task counts for `to do`, `doing`, and `done`. The chevron points in the direction the drawer will collapse or expand.
+
 ## Process Tasks
 
 In an AI coding tool, run:
