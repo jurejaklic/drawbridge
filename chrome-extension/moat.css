@@ -616,7 +616,7 @@ body.float-drawing-mode * {
   margin: 0 auto;
   width: 22px !important;
   height: 22px !important;
-  transform: translateX(3px);
+  transform: translateX(5px);
 }
 
 .float-moat.float-moat-right.float-moat-collapsed .float-moat-right-controls,
@@ -705,6 +705,7 @@ body.float-drawing-mode * {
   font-weight: 700;
   line-height: 22px;
   color: #ffffff;
+  transform: translateX(4px);
 }
 
 .float-moat.float-moat-right.float-moat-collapsed .float-moat-tools-dropdown,
