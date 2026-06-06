@@ -705,7 +705,14 @@ body.float-drawing-mode * {
   font-weight: 700;
   line-height: 22px;
   color: #ffffff;
+}
+
+.float-moat.float-moat-right.float-moat-collapsed .float-tab-badge {
   transform: translateX(4px);
+}
+
+.float-moat.float-moat-left.float-moat-collapsed .float-tab-badge {
+  transform: translateX(0);
 }
 
 .float-moat.float-moat-right.float-moat-collapsed .float-moat-tools-dropdown,
