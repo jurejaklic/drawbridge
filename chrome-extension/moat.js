@@ -1378,10 +1378,12 @@
   // Shared function for positioning menus with smart placement
   function positionMenu(menu, button) {
     const rect = button.getBoundingClientRect();
+    const isCollapsedSideRail = isCollapsed && (moatPosition === 'left' || moatPosition === 'right');
     
     // Append menu off-screen first to measure its height
     menu.style.position = 'fixed';
     menu.style.top = '-9999px';
+    menu.style.left = '';
     menu.style.right = '0';
     menu.style.opacity = '0';
     menu.style.transform = 'translateY(-8px) scale(0.95)';
@@ -1389,16 +1391,33 @@
     
     // Get actual menu height
     const menuHeight = menu.offsetHeight || 200; // Fallback estimate
+    const menuWidth = menu.offsetWidth || 220;
     
     // Calculate position above button, ensuring it doesn't go off-screen
     const spaceAbove = rect.top;
     const spaceBelow = window.innerHeight - rect.bottom;
-    const maxHeight = Math.min(menuHeight, spaceAbove - 10, window.innerHeight - 20);
+    const maxHeight = Math.max(96, Math.min(menuHeight, Math.max(spaceAbove - 10, spaceBelow - 10), window.innerHeight - 20));
     
     // Always use 4px spacing (ensures 4px from top of plugin drawer when docked at bottom)
     const spacing = 4;
     
-    if (spaceAbove >= menuHeight + spacing || spaceAbove > spaceBelow) {
+    if (isCollapsedSideRail) {
+      const top = Math.min(
+        Math.max(10, rect.top),
+        Math.max(10, window.innerHeight - Math.min(menuHeight, maxHeight) - 10)
+      );
+      menu.style.top = `${top}px`;
+      menu.style.maxHeight = `${Math.min(menuHeight, window.innerHeight - 20)}px`;
+      menu.style.transformOrigin = moatPosition === 'left' ? 'top left' : 'top right';
+
+      if (moatPosition === 'left') {
+        menu.style.left = `${rect.right + spacing}px`;
+        menu.style.right = 'auto';
+      } else {
+        menu.style.right = `${window.innerWidth - rect.left + spacing}px`;
+        menu.style.left = 'auto';
+      }
+    } else if (spaceAbove >= menuHeight + spacing || spaceAbove > spaceBelow) {
       // Position above the button with 4px spacing
       menu.style.top = `${rect.top - menuHeight - spacing}px`;
       menu.style.maxHeight = `${maxHeight}px`;
@@ -1410,8 +1429,10 @@
       menu.style.transformOrigin = 'top right';
     }
     
-    menu.style.right = `${window.innerWidth - rect.right}px`;
-    menu.style.minWidth = `${rect.width}px`;
+    if (!isCollapsedSideRail) {
+      menu.style.right = `${window.innerWidth - rect.right}px`;
+    }
+    menu.style.minWidth = `${Math.max(rect.width, menuWidth)}px`;
     
     // Trigger animation
     requestAnimationFrame(() => {
@@ -2108,6 +2129,7 @@
 
   function updateTabBadges(allTasks) {
     if (!moat) return;
+    const showZeroBadges = isCollapsed && (moatPosition === 'left' || moatPosition === 'right');
     
     // Count tasks by status
     const counts = {
@@ -2129,9 +2151,9 @@
       // Update header badges
       const headerBadge = moat.querySelector(`#float-badge-${statusId}`);
       if (headerBadge) {
-        if (count > 0) {
+        if (count > 0 || showZeroBadges) {
           headerBadge.textContent = count;
-          headerBadge.style.display = 'inline-block';
+          headerBadge.style.display = showZeroBadges ? 'inline-flex' : 'inline-block';
         } else {
           headerBadge.style.display = 'none';
         }
@@ -2140,9 +2162,9 @@
       // Update below-header badges
       const belowBadge = moat.querySelector(`#float-badge-${statusId}-below`);
       if (belowBadge) {
-        if (count > 0) {
+        if (count > 0 || showZeroBadges) {
           belowBadge.textContent = count;
-          belowBadge.style.display = 'inline-block';
+          belowBadge.style.display = showZeroBadges ? 'inline-flex' : 'inline-block';
         } else {
           belowBadge.style.display = 'none';
         }
@@ -2218,6 +2240,18 @@
       collapseToggle.title = label;
       collapseToggle.setAttribute('aria-label', label);
     }
+
+    const showZeroBadges = isCollapsed && (moatPosition === 'left' || moatPosition === 'right');
+    ['todo', 'doing', 'done'].forEach(statusId => {
+      moat.querySelectorAll(`#float-badge-${statusId}, #float-badge-${statusId}-below`).forEach(badge => {
+        if (showZeroBadges && (!badge.textContent || badge.style.display === 'none')) {
+          badge.textContent = '0';
+          badge.style.display = 'inline-flex';
+        } else if (!showZeroBadges && badge.textContent === '0') {
+          badge.style.display = 'none';
+        }
+      });
+    });
   }
 
   function setMoatCollapsed(collapsed, persist = true) {
@@ -2257,6 +2291,8 @@
     } else {
       moat.classList.add('float-moat-right');
     }
+
+    updateCollapsedControls();
     
     // Note: Position button has been replaced with more button
     // Position-specific functionality is now handled through the more menu
