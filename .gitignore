@@ -71,6 +71,13 @@ coverage/
 .moat/
 .claude/
 
+# Local agent coordination notes
+AGENT_NOTES.md
+TASKS.md
+ROADMAP.md
+*-ROADMAP.md
+*-DOGFOOD-BUGS.md
+
 # Media files and demo assets (hosted externally)
 _media/
 demo/images/
