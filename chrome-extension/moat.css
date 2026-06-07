@@ -2567,6 +2567,13 @@ body.float-drawing-mode * {
   box-shadow: 0 1px 3px var(--moat-shadow);
 }
 
+.float-modal-button:disabled,
+.float-modal-button:disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+}
+
 /* Danger button for modals */
 .float-modal-button {
   padding: 10px 20px;
@@ -2673,6 +2680,7 @@ body.float-drawing-mode * {
 }
 
 .float-task-detail-text,
+.float-task-detail-comment,
 .float-task-detail-pre,
 .float-task-detail-json pre {
   border: 1px solid var(--moat-border);
@@ -2685,6 +2693,21 @@ body.float-drawing-mode * {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   margin: 0 0 16px 0;
+}
+
+.float-task-detail-comment {
+  display: block;
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: inherit;
+  outline: none;
+}
+
+.float-task-detail-comment:focus {
+  border-color: var(--moat-accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 .float-task-detail-json {

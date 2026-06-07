@@ -260,6 +260,31 @@ class TaskStore {
     }
 
     /**
+     * Update a task comment
+     * @param {string} id - Task ID to update
+     * @param {string} comment - New comment value
+     * @returns {Object|null} Updated task object or null if not found
+     */
+    updateTaskComment(id, comment) {
+        const normalizedComment = String(comment || '').trim();
+        if (!normalizedComment) {
+            throw new Error('Task comment cannot be empty');
+        }
+
+        const task = this.getTaskById(id);
+        if (!task) {
+            return null;
+        }
+
+        task.comment = normalizedComment;
+        if (Object.prototype.hasOwnProperty.call(task, 'content')) {
+            task.content = normalizedComment;
+        }
+        task.lastModified = Date.now();
+        return task;
+    }
+
+    /**
      * Get task count statistics
      * @returns {Object} Statistics object with total, to do, doing, done counts
      */
@@ -376,6 +401,20 @@ class TaskStore {
      */
     async updateTaskStatusAndSave(id, status) {
         const task = this.updateTaskStatus(id, status);
+        if (task) {
+            await this.saveTasksToFile();
+        }
+        return task;
+    }
+
+    /**
+     * Update task comment and automatically save to file
+     * @param {string} id - Task ID to update
+     * @param {string} comment - New comment value
+     * @returns {Promise<Object|null>} Promise resolving to updated task or null if not found
+     */
+    async updateTaskCommentAndSave(id, comment) {
+        const task = this.updateTaskComment(id, comment);
         if (task) {
             await this.saveTasksToFile();
         }
