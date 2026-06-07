@@ -3307,6 +3307,42 @@
     }
   }
 
+  async function saveTaskComment(id, comment) {
+    const nextComment = String(comment || '').trim();
+    if (!nextComment) {
+      throw new Error('Comment cannot be empty');
+    }
+
+    let updatedTask = null;
+
+    if (canUseNewTaskSystem() && window.taskStore) {
+      updatedTask = await window.taskStore.updateTaskCommentAndSave(id, nextComment);
+
+      if (updatedTask && window.markdownGenerator) {
+        const allTasks = window.taskStore.getAllTasksChronological();
+        await window.markdownGenerator.rebuildMarkdownFile(allTasks);
+      }
+    } else {
+      const queue = JSON.parse(localStorage.getItem('moat.queue') || '[]');
+      const annotation = queue.find(a => a.id === id);
+
+      if (annotation) {
+        annotation.content = nextComment;
+        annotation.comment = nextComment;
+        annotation.lastModified = Date.now();
+        localStorage.setItem('moat.queue', JSON.stringify(queue));
+        updatedTask = convertAnnotationToTask(annotation);
+      }
+    }
+
+    if (!updatedTask) {
+      return null;
+    }
+
+    await refreshTasks(true);
+    return updatedTask;
+  }
+
   function showTaskDetails(id) {
     const task = getTaskFromRenderedId(id);
     if (!task) {
@@ -3314,8 +3350,10 @@
       return;
     }
 
-    const prompt = formatTaskPrompt(task);
-    const json = JSON.stringify(task, null, 2);
+    let currentTask = task;
+    let currentPrompt = formatTaskPrompt(currentTask);
+    let currentJson = JSON.stringify(currentTask, null, 2);
+    const currentComment = task.comment || task.content || '';
     const modal = document.createElement('div');
     modal.className = 'float-modal-overlay';
     modal.innerHTML = `
@@ -3347,21 +3385,53 @@
           </div>
         </div>
         <label class="float-task-detail-label">Comment</label>
-        <div class="float-task-detail-text">${escapeHtml(task.comment || task.content || 'No content available')}</div>
+        <textarea class="float-task-detail-comment" data-field="comment">${escapeHtml(currentComment)}</textarea>
         <label class="float-task-detail-label">Assistant Prompt</label>
-        <pre class="float-task-detail-pre">${escapeHtml(prompt)}</pre>
+        <pre class="float-task-detail-pre" data-field="prompt">${escapeHtml(currentPrompt)}</pre>
         <details class="float-task-detail-json">
           <summary>Raw JSON</summary>
-          <pre>${escapeHtml(json)}</pre>
+          <pre data-field="json">${escapeHtml(currentJson)}</pre>
         </details>
         <div class="float-modal-actions">
           <button class="float-modal-button float-modal-button-secondary" data-action="copy-json">Copy JSON</button>
           <button class="float-modal-button float-modal-confirm" data-action="copy-prompt">Copy Prompt</button>
+          <button class="float-modal-button float-modal-confirm" data-action="save-comment" disabled>Save Comment</button>
         </div>
       </div>
     `;
 
     document.body.appendChild(modal);
+    const textarea = modal.querySelector('[data-field="comment"]');
+    const promptPre = modal.querySelector('[data-field="prompt"]');
+    const jsonPre = modal.querySelector('[data-field="json"]');
+    const saveButton = modal.querySelector('[data-action="save-comment"]');
+
+    function syncModalTask(nextTask) {
+      currentTask = nextTask;
+      currentPrompt = formatTaskPrompt(currentTask);
+      currentJson = JSON.stringify(currentTask, null, 2);
+
+      const nextComment = currentTask.comment || currentTask.content || '';
+      textarea.value = nextComment;
+      textarea.defaultValue = nextComment;
+      promptPre.textContent = currentPrompt;
+      jsonPre.textContent = currentJson;
+      saveButton.disabled = true;
+    }
+
+    function syncSaveButtonState() {
+      const nextComment = textarea.value.trim();
+      const savedComment = (textarea.defaultValue || '').trim();
+      saveButton.disabled = !nextComment || nextComment === savedComment;
+    }
+
+    textarea.addEventListener('input', syncSaveButtonState);
+    textarea.addEventListener('keydown', async (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !saveButton.disabled) {
+        e.preventDefault();
+        saveButton.click();
+      }
+    });
 
     modal.addEventListener('click', async (e) => {
       const button = e.target.closest('[data-action]');
@@ -3374,11 +3444,33 @@
       if (action === 'close') {
         modal.remove();
       } else if (action === 'copy-prompt') {
-        await copyTextToClipboard(prompt);
+        await copyTextToClipboard(currentPrompt);
         showNotification('Task prompt copied', 'success');
       } else if (action === 'copy-json') {
-        await copyTextToClipboard(json);
+        await copyTextToClipboard(currentJson);
         showNotification('Task JSON copied', 'success');
+      } else if (action === 'save-comment') {
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Saving...';
+
+        try {
+          const updatedTask = await saveTaskComment(id, textarea.value);
+          if (!updatedTask) {
+            showNotification('Task not found for update', 'error');
+            syncSaveButtonState();
+            return;
+          }
+
+          syncModalTask(updatedTask);
+          showNotification('Task comment updated', 'success');
+        } catch (error) {
+          console.error('Could not update task comment:', error);
+          showNotification(error.message || 'Could not update task comment', 'error');
+          syncSaveButtonState();
+        } finally {
+          button.textContent = originalText;
+        }
       }
     });
   }
